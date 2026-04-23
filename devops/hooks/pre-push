@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# pre-push hook — Runs test suite before any push.
+# Source: GitGuardian "Automated Guardrails for Vibe Coding"
+#         https://blog.gitguardian.com/automated-guard-rails-for-vibe-coding/
+#
+# Install: cp devops/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+# Or use:  bash devops/scripts/install-hooks.sh <project-path>
+
+set -euo pipefail
+
+echo ""
+echo "  Running pre-push checks..."
+echo ""
+
+# ── 1. Linting ────────────────────────────────────────────────────────────────
+if command -v flake8 &>/dev/null && [ -d src ]; then
+    echo "  [1/3] flake8..."
+    if ! flake8 src/ --max-line-length=100 --quiet; then
+        echo ""
+        echo "  ✗  Linting failed. Fix errors above before pushing."
+        exit 1
+    fi
+    echo "        OK"
+fi
+
+# ── 2. Tests ──────────────────────────────────────────────────────────────────
+if command -v pytest &>/dev/null && [ -d tests ]; then
+    echo "  [2/3] pytest..."
+    if ! pytest tests/ -q --tb=short 2>&1; then
+        echo ""
+        echo "  ✗  Tests failed. Fix failing tests before pushing."
+        exit 1
+    fi
+    echo "        OK"
+fi
+
+# ── 3. Secret scan ────────────────────────────────────────────────────────────
+# Check for common secret patterns in staged/committed files.
+# For a full scan, install detect-secrets: pip install detect-secrets
+if command -v detect-secrets-hook &>/dev/null; then
+    echo "  [3/3] secret scan..."
+    if git diff HEAD~1 HEAD --diff-filter=A --name-only 2>/dev/null | xargs detect-secrets-hook 2>&1; then
+        echo "        OK"
+    else
+        echo ""
+        echo "  ✗  Possible secrets detected. Review the output above."
+        echo "     If this is a false positive, update .secrets.baseline:"
+        echo "       detect-secrets scan > .secrets.baseline"
+        exit 1
+    fi
+else
+    echo "  [3/3] secret scan skipped (detect-secrets not installed)"
+    echo "        Install with: pip install detect-secrets"
+fi
+
+echo ""
+echo "  ✓  All pre-push checks passed."
+echo ""
+exit 0

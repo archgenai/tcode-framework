@@ -1,0 +1,10 @@
+Before producing your final answer, reason step by step through the problem.
+
+Structure your reasoning as follows:
+1. Identify what is being asked and what constraints apply.
+2. List the relevant information from the input.
+3. Work through any ambiguities or edge cases.
+4. Arrive at your conclusion.
+
+Then produce your final answer after the reasoning. If the output format requires JSON,
+include only the JSON in your final answer — not the reasoning steps.

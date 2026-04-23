@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# commit-msg hook — Enforces Conventional Commits 1.0.0 format.
+# Source: https://www.conventionalcommits.org/en/v1.0.0/
+#
+# Install: cp devops/hooks/commit-msg .git/hooks/commit-msg && chmod +x .git/hooks/commit-msg
+# Or use:  bash devops/scripts/install-hooks.sh <project-path>
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Skip merge commits, fixup commits, and squash commits
+if echo "$COMMIT_MSG" | grep -qE '^(Merge|fixup!|squash!)'; then
+    exit 0
+fi
+
+# Conventional Commits pattern:
+# <type>[optional scope][optional !]: <description>
+# Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_/-]+\))?!?: .{1,100}$'
+
+FIRST_LINE=$(echo "$COMMIT_MSG" | head -1)
+
+if ! echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
+    echo ""
+    echo "  ✗  Commit message does not follow Conventional Commits format."
+    echo ""
+    echo "  Format:  <type>[optional scope]: <description>"
+    echo "  Example: feat(ocr): extract vendor and amount from receipt image"
+    echo "  Example: fix(webhook): handle missing content-type header"
+    echo "  Example: docs: update README with setup instructions"
+    echo ""
+    echo "  Types: feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert"
+    echo "  Breaking change: add ! before colon  →  feat!: remove legacy endpoint"
+    echo ""
+    echo "  Your message: $FIRST_LINE"
+    echo ""
+    echo "  Source: https://www.conventionalcommits.org/en/v1.0.0/"
+    echo ""
+    exit 1
+fi
+
+exit 0

@@ -1,0 +1,75 @@
+# TCode DevOps Configuration
+# Copy this file to devops/config.yaml and fill in your values.
+# devops/config.yaml is gitignored — never commit tokens.
+#
+# Supported provider types: gogs | gitea | forgejo | github | gitlab | bitbucket
+
+workspace_name: TCode
+default_branch: main
+
+# CI webhook server settings
+ci:
+  port: 9000
+  secret_env: WEBHOOK_SECRET       # name of env var holding webhook HMAC secret
+  log_dir: devops/ci/logs
+  test_command: pytest tests/ -q --tb=short
+  lint_command: flake8 src/ --max-line-length=100
+
+# ── Remotes ───────────────────────────────────────────────────────────────────
+# Each remote has a role:
+#   primary  — PRs created here, CI triggers here, canonical source of truth
+#   mirror   — pushed to on every push-all call (auto_push: true)
+#   backup   — pushed to only on push-all --include-backup
+#
+# token_env: the name of the environment variable holding the API token.
+# Set the actual token in your shell's .env or ~/.bashrc — never paste it here.
+
+remotes:
+  - id: local
+    type: gogs                       # gogs | gitea | forgejo | github | gitlab | bitbucket
+    label: "Local Gogs"
+    url: http://localhost:3000
+    owner: your-username             # your username on this provider
+    token_env: GOGS_TOKEN
+    role: primary
+    auto_push: true
+    # Note: Gogs has no PR creation API (github.com/gogs/gogs/issues/5871).
+    # create-pr.py will print the URL to open a PR in the Gogs web UI instead.
+
+  # Uncomment and fill in to add a GitHub mirror:
+  # - id: github
+  #   type: github
+  #   label: "GitHub (cloud mirror)"
+  #   url: https://github.com
+  #   owner: your-github-username
+  #   token_env: GITHUB_TOKEN
+  #   role: mirror
+  #   auto_push: true
+
+  # Uncomment and fill in to add a GitLab mirror:
+  # - id: gitlab
+  #   type: gitlab
+  #   label: "GitLab (cloud mirror)"
+  #   url: https://gitlab.com         # or your self-hosted URL
+  #   owner: your-gitlab-username
+  #   token_env: GITLAB_TOKEN
+  #   role: mirror
+  #   auto_push: false
+
+  # Uncomment and fill in to add a Gitea instance:
+  # - id: gitea-local
+  #   type: gitea                      # also works for forgejo
+  #   label: "Local Gitea"
+  #   url: http://localhost:3001
+  #   owner: your-username
+  #   token_env: GITEA_TOKEN
+  #   role: primary
+  #   auto_push: true
+
+# ── Project → Remote mappings ─────────────────────────────────────────────────
+# Which remotes host each project.
+# If a project is not listed, it uses all remotes with auto_push: true.
+
+projects:
+  # - folder: my-first-app
+  #   remotes: [local]

@@ -1,0 +1,8 @@
+You must respond with valid JSON only. Do not include markdown code fences, explanatory text,
+or any content outside the JSON object.
+
+Your response must conform exactly to the schema provided in the user message. If a field is
+optional and you have no value for it, omit the key entirely rather than using null or an empty string.
+
+If you cannot produce a valid response, return:
+{"error": "brief explanation of why the response cannot be generated"}

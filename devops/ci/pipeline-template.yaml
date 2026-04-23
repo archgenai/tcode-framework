@@ -1,0 +1,38 @@
+# CI Pipeline Template — for use with Woodpecker CI or Drone CI
+# Copy to projects/<app-name>/.woodpecker.yaml (Woodpecker) or .drone.yml (Drone)
+#
+# Woodpecker CI: https://woodpecker-ci.org/docs/usage/intro
+# Note: Woodpecker supports Gitea/Forgejo natively. For Gogs, use Drone CI instead.
+# Source: Woodpecker Issue #1894 — Gogs support dropped; cgebe/gogs-drone-ci for Drone+Gogs
+
+when:
+  - event: [push, pull_request]
+    branch: [main, "feat/*", "fix/*"]
+
+steps:
+  - name: install
+    image: python:3.12-slim
+    commands:
+      - pip install -r requirements.txt --quiet
+
+  - name: lint
+    image: python:3.12-slim
+    commands:
+      - pip install flake8 --quiet
+      - flake8 src/ --max-line-length=100 --statistics
+    depends_on: [install]
+
+  - name: test
+    image: python:3.12-slim
+    commands:
+      - pip install pytest pytest-cov --quiet
+      - pytest tests/ -q --tb=short --cov=src --cov-report=term-missing
+    depends_on: [install]
+
+  # Optional: security scan
+  # - name: security
+  #   image: python:3.12-slim
+  #   commands:
+  #     - pip install bandit --quiet
+  #     - bandit -r src/ -ll --quiet
+  #   depends_on: [install]
