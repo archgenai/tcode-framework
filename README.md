@@ -192,4 +192,4 @@ Conventional Commits + `Coding-Agent:` / `Model:` trailers — proper AI attribu
 
 ## 📄 License
 
-MIT — free to use, fork, and build on. Attribution appreciated but not required.
+MIT — free to use, fork, and build on. The copyright notice and license text must be included in all copies or substantial portions of the software. See [`LICENSE`](LICENSE) for the full terms.
