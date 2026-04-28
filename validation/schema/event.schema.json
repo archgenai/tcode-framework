@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tcode/validation/schema/event.schema.json",
+  "title": "TCode Runtime Event",
+  "description": "One line in runtime/events/YYYY-MM-DD.jsonl. Appended by CI/CD per build/deploy/test run.",
+  "type": "object",
+  "required": ["ts", "kind", "status"],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 event timestamp"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["build", "test", "deploy", "smoke_test", "health_check", "gate"],
+      "description": "What kind of validation event this is"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "skipped", "error"],
+      "description": "Outcome of this event"
+    },
+    "build_id":    { "type": ["string", "null"] },
+    "environment": { "type": ["string", "null"] },
+    "version":     { "type": ["string", "null"] },
+    "duration_s":  { "type": ["number", "null"] },
+    "detail":      { "type": "string", "description": "Error message, failure reason, or pass detail" },
+    "agent":       { "type": ["string", "null"], "description": "Coding agent active when this change was introduced (from git trailer if available)" }
+  }
+}

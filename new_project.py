@@ -52,6 +52,7 @@ def banner() -> None:
         "║              TCode — New Project Wizard                  ║",
         "║   Answer the prompts below to scaffold a new project.    ║",
         "║   All fields marked * are required.                      ║",
+        "║   9 sections — last one sets up the validation regime.   ║",
         "╚══════════════════════════════════════════════════════════╝",
     ]
     print()
@@ -392,11 +393,16 @@ prompts/          # LLM prompt .txt files, organized by feature
 ├── system/
 │   └── system_prompt.txt
 └── <feature>/
-memory/           # Project memory (read at session start)
+memory/           # Agent-authored state (read + written at session boundary)
 ├── MEMORY.md     # Stable facts about this project
 ├── task_plan.md  # Current phase tasks and blockers
 ├── decisions.md  # Architecture decision records
 └── sessions/     # Per-session episodic logs (agent-written)
+runtime/          # Environment-authored state (written by CI/CD, read by agent)
+├── regime.md     # What validation gates apply (developer-maintained)
+├── latest.json   # Most recent build/test/deploy state
+├── decisions.md  # Validation regime changes (VDR log)
+└── events/       # Per-run event log (YYYY-MM-DD.jsonl)
 ```
 
 ## Hard Rules
@@ -408,7 +414,11 @@ memory/           # Project memory (read at session start)
 ## Session Bootstrap
 
 Start: read `memory/MEMORY.md` + `memory/task_plan.md` + `../../memory/MEMORY.md`
-End: update `memory/task_plan.md`, append to `memory/sessions/YYYY-MM-DD.md`
+      + `runtime/regime.md` + `runtime/latest.json` (if exists)
+      Note any contradictions between memory claims and runtime state before starting work.
+End:   update `memory/task_plan.md`, append to `memory/sessions/YYYY-MM-DD.md`
+      Compare memory claims against `runtime/latest.json`; record discrepancies under
+      ## Validation Reconciliation in the session log.
 
 ## Current Phase
 
@@ -514,6 +524,134 @@ Rules that always apply:
 """
 
 
+def gen_runtime_regime(d: dict) -> str:
+    """Generate runtime/regime.md pre-filled from wizard answers."""
+    project_type = d["project_type"]
+    language     = d["language"]
+    has_tests    = d.get("has_tests", True)
+    test_cmd     = d.get("test_command", "pytest" if language == "Python" else "npm test")
+    lint_cmd     = d.get("lint_command", "ruff check ." if language == "Python" else "npm run lint")
+    has_deploy   = d.get("has_deploy", False)
+    health_url   = d.get("health_url", "")
+    is_poc       = "POC" in project_type
+
+    commit_gates = []
+    if has_tests:
+        commit_gates.append(f"- [ ] Unit tests pass (`{test_cmd}`)")
+    commit_gates.append(f"- [ ] Linter / type checker passes (`{lint_cmd}`)")
+    commit_gates.append("- [ ] No hardcoded secrets (manual check or `git diff --staged`)")
+    if not is_poc:
+        commit_gates.append("- [ ] No dead code — remove before committing")
+
+    merge_gates = ["- [ ] All commit gates pass on a clean run"]
+    if has_tests:
+        merge_gates.append(f"- [ ] Integration tests pass (`{test_cmd} tests/integration/`)")
+    if not is_poc:
+        merge_gates.append("- [ ] Test coverage >= 70% (raise per-project as codebase matures)")
+
+    deploy_section = ""
+    if has_deploy:
+        health_line = f"- [ ] Health check returns 200 (`{health_url}`)" if health_url else \
+                      "- [ ] Health check returns 200 (set URL in regime.md when known)"
+        deploy_section = f"""
+## Deploy Gates
+
+- [ ] Smoke test passes on staging before prod promotion
+{health_line}
+- [ ] No open P0 or P1 issues at deploy time
+"""
+    else:
+        deploy_section = """
+## Deploy Gates
+
+- [ ] N/A — this project is not deployed (update when deployment is added)
+"""
+
+    monitoring_url  = health_url or "N/A"
+    poc_note        = "\n## POC Exception\n\nThis is a POC project. Integration tests and coverage gates apply\nfrom Phase 3 onward. Commit gates apply from Phase 1.\n" if is_poc else ""
+
+    return f"""\
+# Validation Regime — {d["app_name"]}
+# What validation gates apply to this project.
+# Written by the developer, not CI/CD. Update when the approach changes.
+# When you change this file, add an entry to runtime/decisions.md explaining why.
+#
+# Agent reads this at session bootstrap alongside runtime/latest.json.
+
+---
+
+## Commit Gates
+
+{chr(10).join(commit_gates)}
+
+---
+
+## Merge / PR Gates
+
+{chr(10).join(merge_gates)}
+{deploy_section}
+---
+
+## Runtime Monitoring
+
+- Health check URL: {monitoring_url}
+- Alert channel: N/A (update when alerting is wired)
+- On-call: N/A
+
+---
+
+## Environment Map
+
+| Environment | What it is | Deployed at |
+|---|---|---|
+| dev | Local development | localhost |
+| staging | Pre-prod validation | TBD |
+| prod | Live product | TBD |
+{poc_note}"""
+
+
+def gen_runtime_latest(d: dict) -> str:
+    import json
+    return json.dumps({
+        "_schema": "../../validation/schema/runtime.schema.json",
+        "_note": "Written by CI/CD on every build and deploy. Do not edit manually. Agent reads at session bootstrap.",
+        "generated_at": None,
+        "project": d["folder_name"],
+        "status": "unknown",
+        "build":   {"id": None, "triggered_at": None, "duration_s": None, "passed": None},
+        "tests":   {"passed": 0, "failed": 0, "skipped": 0, "coverage_pct": None},
+        "deploy":  {"environment": None, "version": None, "deployed_at": None, "healthy": None, "url": None},
+        "gates":   [],
+        "open_issues": [],
+        "notes": "",
+    }, indent=2)
+
+
+def gen_runtime_decisions(d: dict) -> str:
+    return f"""\
+# Validation Decisions — {d["app_name"]}
+# Append-only log of changes to this project's validation regime.
+# Parallel to memory/decisions.md but scoped to the validation ecosystem.
+#
+# Write here when:
+# - A gate is added or removed from regime.md (record why)
+# - A validation failure recurs across 2+ sessions (record the pattern and the response)
+# - The CI/CD tooling or deploy pipeline changes
+#
+# Format mirrors workspace decisions.md ADR format.
+# Prefix decisions with VDR-NNN (Validation Decision Record).
+
+---
+
+## VDR-001 — Initial validation regime established ({date.today().isoformat()})
+
+**Decision:** Regime scaffolded by new_project.py wizard.
+**Project type:** {d["project_type"]}
+**Gates set:** {"Commit + Merge gates" if not d.get("has_deploy") else "Commit + Merge + Deploy gates"}
+**Consequences:** Update regime.md and add VDR-002 when CI/CD is wired or gates change.
+"""
+
+
 def gen_env_example(d: dict) -> str:
     lines = [
         "# Environment variables for this project.",
@@ -571,6 +709,15 @@ def create_project(d: dict) -> Path:
         gen_system_prompt(d), encoding="utf-8"
     )
 
+    # ── Validation / runtime subsystem ────────────────────────────────────────
+    runtime_dir = folder / "runtime"
+    runtime_dir.mkdir(exist_ok=True)
+    (runtime_dir / "events").mkdir(exist_ok=True)
+    (runtime_dir / "events" / ".gitkeep").touch()
+    (runtime_dir / "regime.md").write_text(gen_runtime_regime(d), encoding="utf-8")
+    (runtime_dir / "latest.json").write_text(gen_runtime_latest(d), encoding="utf-8")
+    (runtime_dir / "decisions.md").write_text(gen_runtime_decisions(d), encoding="utf-8")
+
     return folder
 
 
@@ -581,7 +728,12 @@ def print_created(folder: Path, folder_name: str) -> None:
         if f.name.startswith("."):
             continue
         if f.is_dir():
-            print(s(f"     projects/{folder_name}/{f.name}/", GRN))
+            label = f.name
+            if label == "runtime":
+                label += s("  ← validation ecosystem (fill regime.md, wire CI to latest.json)", DIM)
+            elif label == "memory":
+                label += s("  ← agent-authored state", DIM)
+            print(s(f"     projects/{folder_name}/{label}/", GRN))
             for child in sorted(f.iterdir()):
                 if not child.name.startswith("."):
                     print(s(f"       ├── {child.name}", GRN))
@@ -595,11 +747,15 @@ BOOTSTRAP_PROMPT = (
     "Using all three as your context, generate two files for this project:\n\n"
     "  CLAUDE.md        — project-level adapter that inherits all workspace conventions "
     "and adds project-specific architecture, constraints, and current phase. Include a "
-    "session bootstrap section and a prompt registry section referencing prompts/.\n"
+    "session bootstrap section (referencing both memory/ and runtime/) and a prompt "
+    "registry section referencing prompts/.\n"
     "  REQUIREMENTS.md  — phased feature plan derived from APP_SPEC.md, with clear "
     "acceptance criteria for each phase.\n\n"
-    "Then update memory/MEMORY.md with the architecture and key constraints you just "
-    "defined, and update memory/task_plan.md with the Phase 1 tasks from REQUIREMENTS.md.\n\n"
+    "Then:\n"
+    "  1. Update memory/MEMORY.md with the architecture and key constraints you just defined.\n"
+    "  2. Update memory/task_plan.md with the Phase 1 tasks from REQUIREMENTS.md.\n"
+    "  3. Review runtime/regime.md — confirm the pre-filled gates are correct for this "
+    "project, adjust if needed, and note any changes in runtime/decisions.md.\n\n"
     "Do not write any application code yet. Briefly summarise what you produced "
     "and wait for my next instruction."
 )
@@ -788,9 +944,56 @@ def collect() -> dict:
         tip="Prevents Claude from over-engineering. Leave blank and press Enter to skip.",
     )
 
-    # ── 8 / 8  Success Criteria ───────────────────────────────────────────────
-    section("8 / 8", "Success Criteria", "How will you know the app works?")
+    # ── 8 / 9  Success Criteria ───────────────────────────────────────────────
+    section("8 / 9", "Success Criteria", "How will you know the app works?")
     d["success_criteria"] = ask_success_criteria()
+
+    # ── 9 / 9  Validation Regime ──────────────────────────────────────────────
+    section(
+        "9 / 9", "Validation Regime",
+        "Sets up runtime/ — the environment-authored side of the harness.",
+    )
+    hint("Answers pre-fill runtime/regime.md. CI/CD writes runtime/latest.json at each run.")
+    hint("You can edit regime.md after scaffolding — this just gives sensible defaults.")
+    print()
+
+    d["has_tests"] = confirm("Does this project have automated tests?", default=True)
+    if d["has_tests"]:
+        default_test_cmd = "pytest" if d["language"] == "Python" else "npm test"
+        d["test_command"] = ask(
+            "Test command",
+            default=default_test_cmd,
+            required=False,
+            tip="Command that runs the test suite.",
+        )
+    else:
+        d["test_command"] = ""
+
+    default_lint = "ruff check ." if d["language"] == "Python" else "npm run lint"
+    d["lint_command"] = ask(
+        "Lint / type-check command",
+        default=default_lint,
+        required=False,
+        tip="Leave blank to accept the default.",
+    )
+
+    # Infer deployment from earlier answer
+    non_local = d["constraint_deployment"] not in (
+        "Local / developer machine", "Not decided yet"
+    )
+    d["has_deploy"] = confirm(
+        "Will this project be deployed to a server, container, or cloud?",
+        default=non_local,
+    )
+    if d["has_deploy"]:
+        d["health_url"] = ask(
+            "Health check URL",
+            default="",
+            required=False,
+            tip="e.g. https://api.example.com/health — leave blank if not yet known.",
+        )
+    else:
+        d["health_url"] = ""
 
     return d
 

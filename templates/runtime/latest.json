@@ -1,0 +1,29 @@
+{
+  "_schema": "../../validation/schema/runtime.schema.json",
+  "_note": "Written by CI/CD on every build and deploy. Do not edit manually. Agent reads at session bootstrap.",
+  "generated_at": null,
+  "project": "",
+  "status": "unknown",
+  "build": {
+    "id": null,
+    "triggered_at": null,
+    "duration_s": null,
+    "passed": null
+  },
+  "tests": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "coverage_pct": null
+  },
+  "deploy": {
+    "environment": null,
+    "version": null,
+    "deployed_at": null,
+    "healthy": null,
+    "url": null
+  },
+  "gates": [],
+  "open_issues": [],
+  "notes": ""
+}

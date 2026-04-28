@@ -52,15 +52,25 @@ TCode/
 1. Read `FRAMEWORK.md`
 2. Read `memory/MEMORY.md` — stable workspace facts
 3. Read `memory/task_plan.md` — current goals and in-flight work
-4. If working inside a project: also read `projects/<name>/memory/MEMORY.md`
-   and `projects/<name>/memory/task_plan.md`
-5. If resuming interrupted work: read the most recent `memory/sessions/YYYY-MM-DD.md`
+4. If resuming interrupted work: read the most recent `memory/sessions/YYYY-MM-DD.md`
+5. If working inside a project, also read:
+   - `projects/<name>/memory/MEMORY.md` and `task_plan.md`
+   - `projects/<name>/runtime/regime.md` — validation gates (if exists)
+   - `projects/<name>/runtime/latest.json` — most recent CI/deploy state (if exists)
+   - Before starting any work: note contradictions between memory claims and runtime state
 
 **End of every session:**
 1. Append a summary to `memory/sessions/YYYY-MM-DD.md` (create if needed)
 2. Update `memory/task_plan.md` — mark completed items, add new tasks
 3. Update `memory/MEMORY.md` if new stable facts were established
-4. Apply the same writes at the project level if you worked inside a project
+4. Apply the same memory writes at the project level if you worked inside a project
+5. If project has `runtime/`:
+   - Compare memory claims against `runtime/latest.json`
+   - Add `## Validation Reconciliation` to the session log if any discrepancy exists
+   - If the same validation failure recurred across 2+ sessions, append an entry to
+     `projects/<name>/runtime/decisions.md`
+
+Full validation protocol: `validation/VALIDATION.md`.
 
 ## Non-Negotiable Rules
 

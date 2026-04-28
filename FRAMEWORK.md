@@ -88,6 +88,13 @@ instructions (e.g. Claude reads CLAUDE.md; Cursor reads .cursorrules).
 3. Update `memory/MEMORY.md` if any new stable facts were established
 4. **If any non-obvious decision was made, append it to `memory/decisions.md`.**
 5. Apply the same writes at the project level if you worked inside a project
+6. **Commit and push to all remotes:**
+   ```bash
+   git add -A && git commit -m "chore: session end <YYYY-MM-DD>"
+   bash devops/scripts/push-all.sh
+   ```
+   This is not optional. Commits that exist only on the local machine are not backed up
+   and are invisible to collaborators and the public framework repo.
 
 ---
 
@@ -279,6 +286,66 @@ a historical log.
 
 ---
 
+## Validation System
+
+Full specification: `validation/VALIDATION.md`.
+
+The harness constrains what agents *write*. The validation system tells agents whether
+what they wrote *actually works* in the running environment. At the session boundary,
+agents compare their memory claims against runtime signals and surface any gap.
+
+### The four-layer taxonomy
+
+Each project that has a deployed artefact (or a test suite) should have a `runtime/` directory:
+
+| File | Lifetime | Written by | Contains |
+|---|---|---|---|
+| `runtime/regime.md` | Stable | Developer | What gates apply — commit / merge / deploy |
+| `runtime/latest.json` | Active | CI / CD | Most recent build, test, and deploy state |
+| `runtime/events/YYYY-MM-DD.jsonl` | Episodic | CI / CD | Per-run event log |
+| `runtime/decisions.md` | Append-only | Agent + Developer | Changes to the validation regime |
+
+This mirrors the memory taxonomy. An agent already knows how to read memory — it reads
+`runtime/` the same way.
+
+### The schema
+
+`runtime/latest.json` must conform to `validation/schema/runtime.schema.json`.
+See that file for the full field definitions. Key fields: `status` (passing / failing /
+degraded / unknown), `tests`, `deploy`, `gates`, `open_issues`.
+
+### The reconciliation ritual
+
+Enforced at the session boundary in all agent adapters (see §Plugging In a Coding Agent):
+
+**At session start:** After reading memory, read `runtime/regime.md` and `runtime/latest.json`
+(if they exist). Before starting any work, note contradictions between memory claims and
+runtime state. Surface them explicitly and wait for developer direction.
+
+**At session end:** Before writing the session log, compare memory claims being written
+against current `runtime/latest.json`. Record discrepancies under `## Validation Reconciliation`
+in the session log. If the same failure recurs across 2+ sessions, append an entry to
+`runtime/decisions.md`.
+
+### Setting up a new project
+
+```bash
+cp templates/runtime/regime.md     projects/<name>/runtime/regime.md
+cp templates/runtime/latest.json   projects/<name>/runtime/latest.json
+cp templates/runtime/decisions.md  projects/<name>/runtime/decisions.md
+mkdir -p projects/<name>/runtime/events
+```
+
+Then fill in `regime.md` and wire CI/CD to write `latest.json` on every build.
+
+### What the framework does not prescribe
+
+Test runners, CI platforms, deployment tools, health check implementations, alerting
+systems. Those are project concerns. The framework provides only: schema, taxonomy,
+and the reconciliation ritual.
+
+---
+
 ## DevOps System
 
 All VCS and CI operations use the provider-agnostic tooling in `devops/`.
@@ -333,6 +400,66 @@ only record overrides and additions.
 | Projects registry | Commit format rules |
 | Session bootstrap (agent-specific phrasing) | Adapter pattern documentation |
 
+---
+
+## Video + Audio Generation
+
+When producing explainer videos, demo recordings, or any video with voice-over narration,
+follow the procedure below. The full reference is in the `/video-audio-overlay` skill.
+
+### Core rules
+
+1. **Use Remotion's bundled ffmpeg** for all audio muxing — never the 2018 `@ffmpeg-installer`
+   build (it silently corrupts AAC output). Path: `node_modules/@remotion/compositor-linux-x64-gnu/ffmpeg`
+
+2. **One TTS segment per visual scene.** Do not generate one audio blob for the whole video.
+   Segment narration matches scene transitions and keeps audio in sync with visuals.
+
+3. **Save the narration script** as `narration_script.txt` alongside the video before generating
+   TTS. Include scene labels, word counts, and target durations.
+
+4. **Do not name internal projects** in narration intended for public or external audiences.
+   Say "multiple projects across multiple languages and domains" instead.
+
+5. **Verify with silencedetect** after every mux — ffprobe alone is insufficient. A silent AAC
+   track passes all codec/duration/bitrate checks. Silencedetect is the real gate:
+   ```bash
+   ffmpeg -i out.mp4 -af "silencedetect=noise=-30dB:d=0.5" -vn -f null /dev/null 2>&1 | grep silence_start
+   ```
+   Pass: first `silence_start` > 1.0 s (natural sentence pause). If `silence_start: 0` with
+   `silence_end ≈ video_duration`, the track is silent — fix the TTS source and re-mux.
+
+### Narration script word budget
+
+`alloy` (tts-1-hd) speaks at ~158 wpm. Use this to target scene-length segments:
+
+| Scene duration | Target words |
+|---|---|
+| 10 s | ~26 words |
+| 20 s | ~53 words |
+| 30 s | ~79 words |
+| 60 s | ~158 words |
+
+### Quick reference
+
+```python
+# 1. Write narration_script.txt with one segment per scene
+# 2. Generate TTS per scene
+from openai import OpenAI
+client = OpenAI()
+for i, text in enumerate(scene_texts, 1):
+    data = client.audio.speech.create(model="tts-1-hd", voice="alloy", input=text, response_format="mp3")
+    Path(f"scene_{i:02d}.mp3").write_bytes(data.read())
+
+# 3. Concatenate
+# ffmpeg -f concat -safe 0 -i concat_list.txt -c:a libmp3lame narration.mp3
+
+# 4. Mux
+# ffmpeg -i video.mp4 -i narration.mp3 -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 128k -shortest out.mp4
+
+# 5. Verify (mandatory)
+# ffmpeg -i out.mp4 -af "silencedetect=noise=-30dB:d=0.5" -vn -f null /dev/null 2>&1 | grep silence_start
+```
 
 ---
 

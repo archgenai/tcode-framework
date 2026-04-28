@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tcode/validation/schema/runtime.schema.json",
+  "title": "TCode Runtime State",
+  "description": "Canonical shape of runtime/latest.json. Written by CI/CD, read by agents at session bootstrap. See validation/VALIDATION.md for the full protocol.",
+  "type": "object",
+  "required": ["generated_at", "project", "status"],
+  "properties": {
+    "_schema": {
+      "type": "string",
+      "description": "Path to this schema file (for tooling)"
+    },
+    "generated_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when CI/CD wrote this file"
+    },
+    "project": {
+      "type": "string",
+      "description": "Project folder name (matches projects/<name>)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passing", "failing", "degraded", "unknown"],
+      "description": "Rolled-up status. passing=all gates pass + no P0/P1 + deploy healthy. failing=gate or test failure. degraded=deployed but unhealthy or has P0/P1. unknown=no data or stale."
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "id":           { "type": ["string", "null"] },
+        "triggered_at": { "type": ["string", "null"], "format": "date-time" },
+        "duration_s":   { "type": ["number", "null"] },
+        "passed":       { "type": ["boolean", "null"] }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "passed":       { "type": "integer", "minimum": 0 },
+        "failed":       { "type": "integer", "minimum": 0 },
+        "skipped":      { "type": "integer", "minimum": 0 },
+        "coverage_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+      }
+    },
+    "deploy": {
+      "type": "object",
+      "properties": {
+        "environment":  { "type": ["string", "null"], "enum": ["dev", "staging", "prod", null] },
+        "version":      { "type": ["string", "null"] },
+        "deployed_at":  { "type": ["string", "null"], "format": "date-time" },
+        "healthy":      { "type": ["boolean", "null"] },
+        "url":          { "type": ["string", "null"], "format": "uri" }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "passed"],
+        "properties": {
+          "name":   { "type": "string" },
+          "passed": { "type": "boolean" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "open_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "description"],
+        "properties": {
+          "severity":    { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "description": { "type": "string" },
+          "since":       { "type": ["string", "null"], "format": "date-time" }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text field for context the schema fields cannot capture"
+    }
+  }
+}

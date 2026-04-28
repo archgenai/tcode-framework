@@ -10,11 +10,18 @@ Before any task: read `FRAMEWORK.md`, `memory/MEMORY.md`, and `memory/task_plan.
 
 ## Session Protocol
 
-Start: read `memory/MEMORY.md` + `memory/task_plan.md`. If in a project, read the
-project-level equivalents too.
+**Start:** Read `memory/MEMORY.md` + `memory/task_plan.md`. If in a project, also read
+project-level `memory/` equivalents, plus `runtime/regime.md` and `runtime/latest.json`
+(if they exist). Before starting any work, note contradictions between memory claims
+and runtime state and surface them explicitly.
 
-End: update `memory/task_plan.md`, append `memory/sessions/YYYY-MM-DD.md`, update
-`memory/MEMORY.md` if new stable facts emerged.
+**End:** Update `memory/task_plan.md`, append `memory/sessions/YYYY-MM-DD.md`, update
+`memory/MEMORY.md` if new stable facts emerged. If project has `runtime/`, compare memory
+claims against `runtime/latest.json` and record discrepancies in the session log under
+`## Validation Reconciliation`. If the same failure recurs 2+ sessions, append to
+`runtime/decisions.md`.
+
+Full validation protocol: `validation/VALIDATION.md`.
 
 ## Developer Stack
 
