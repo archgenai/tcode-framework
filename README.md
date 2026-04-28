@@ -1,4 +1,4 @@
-<div align="center">
+
 
 # ⚙️ TCode Framework
 
@@ -12,7 +12,7 @@
 [![DevOps](https://img.shields.io/badge/devops-GitHub%20%7C%20GitLab%20%7C%20Gitea%20%7C%20Gogs-orange.svg)]()
 [![Commits](https://img.shields.io/badge/commits-Conventional%20%2B%20AI%20trailers-green.svg)]()
 
-</div>
+
 
 ---
 
