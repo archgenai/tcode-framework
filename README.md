@@ -27,7 +27,7 @@ CLAUDE.md         ← adapter for Claude Code     ┐
 copilot-...md     ← adapter for GitHub Copilot  ┘
 ```
 
-> **Switching agents = swapping one file.** The framework, memory, and DevOps system stay unchanged.
+> **Switching agents = swapping one file.** The framework, memory, DevOps system, and validation layer stay unchanged.
 
 ---
 
@@ -35,13 +35,14 @@ copilot-...md     ← adapter for GitHub Copilot  ┘
 
 | | Feature | What it does |
 |---|---|---|
-| 🔁 | **Session bootstrap protocol** | Agent reads memory and task plan at every session start — zero re-briefing |
+| 🔁 | **Session bootstrap protocol** | Agent reads memory, task plan, and runtime signals at every session start — zero re-briefing |
 | 🧠 | **Persistent memory system** | Workspace and project-level memory files the agent maintains automatically |
-| 📋 | **Architecture Decision Records** | Decisions tracked in `memory/decisions.md`, queryable by agent at any time |
+| 📋 | **Architecture Decision Records** | Decisions tracked in `memory/decisions.md`, consulted by agent before re-solving known problems |
+| ✅ | **Validation ecosystem** | `runtime/` per project — schema-conforming CI signals the agent reconciles against memory at every session boundary |
 | 🚀 | **Provider-agnostic DevOps** | One script pushes to Gogs, GitHub, GitLab, or Gitea simultaneously |
 | 🏷️ | **Conventional Commits + AI trailers** | `Coding-Agent:` and `Model:` trailers — proper AI attribution on every commit |
 | 🤖 | **Multi-agent adapter templates** | Ready-made adapter files for Claude, Cursor, Copilot, and Codex |
-| 🏗️ | **Project scaffolding wizard** | `python new_project.py` — eight questions, full project scaffold in seconds |
+| 🏗️ | **Project scaffolding wizard** | `python new_project.py` — nine questions, full project scaffold including validation regime |
 | 📝 | **Prompt discipline** | Prompts live in `.txt` files loaded by path — never inline strings in code |
 | 🔒 | **Pre-commit guardrails** | Hooks enforce commit format, block secrets, and gate pushes on test passage |
 
@@ -54,6 +55,12 @@ your-workspace/
 ├── FRAMEWORK.md              ← canonical spec — read this first
 ├── CLAUDE.md                 ← your agent adapter (fill in once)
 ├── AGENTS.md                 ← entry point for AGENTS.md-compatible agents
+│
+├── validation/               ← framework-level validation conventions
+│   ├── VALIDATION.md         ← full spec: taxonomy, schema, reconciliation ritual
+│   └── schema/
+│       ├── runtime.schema.json   ← JSON Schema for runtime/latest.json
+│       └── event.schema.json     ← JSON Schema for runtime/events/*.jsonl
 │
 ├── devops/                   ← push-all, CI hooks, PR creation scripts
 │   ├── config.example.yaml   ← copy → config.yaml, fill in tokens
@@ -73,13 +80,25 @@ your-workspace/
 │   ├── APP_TEMPLATE.md       ← fill in to spin up a new project
 │   ├── CLAUDE_TEMPLATE.md    ← workspace adapter template
 │   ├── MEMORY_TEMPLATE.md    ← project memory template
-│   └── adapters/             ← claude / cursor / copilot / codex
+│   ├── adapters/             ← claude / cursor / copilot / codex
+│   └── runtime/              ← validation scaffold templates
+│       ├── regime.md         ← fill-in: what gates apply to this project
+│       ├── latest.json       ← starter runtime/latest.json (CI writes this)
+│       └── decisions.md      ← VDR log template
 │
 └── projects/
     └── my-app/               ← each project inherits workspace rules
         ├── REQUIREMENTS.md
         ├── STACK.md
-        └── memory/
+        ├── memory/           ← agent-authored state
+        │   ├── MEMORY.md
+        │   ├── task_plan.md
+        │   └── sessions/
+        └── runtime/          ← environment-authored state (CI/CD writes here)
+            ├── regime.md     ← what gates apply (developer-maintained)
+            ├── latest.json   ← most recent build/test/deploy state
+            ├── decisions.md  ← validation regime changes (VDR log)
+            └── events/       ← per-run event log (YYYY-MM-DD.jsonl)
 ```
 
 ---
@@ -112,14 +131,48 @@ bash devops/scripts/install-hooks.sh
 
 ```bash
 python new_project.py
-# → walks through 8 questions
-# → creates projects/my-app/ with all required files
+# → walks through 9 questions (last one sets up the validation regime)
+# → creates projects/my-app/ with all required files including runtime/
 # → prints the bootstrap prompt to paste into your agent
 ```
 
 ### 4 — Bootstrap your agent
 
-Paste the generated prompt into your coding agent. It will read `FRAMEWORK.md`, your adapter, and the project files — then generate `REQUIREMENTS.md` and the project-level adapter **before writing a single line of code**.
+Paste the generated prompt into your coding agent. It will read `FRAMEWORK.md`, your adapter, and the project files — then generate `REQUIREMENTS.md` and the project-level adapter **before writing a single line of code**. It will also review `runtime/regime.md` and confirm the validation gates are correct for your project.
+
+### 5 — Wire CI/CD to the validation schema
+
+Point your CI/CD pipeline at `projects/my-app/runtime/latest.json`. On every build and deploy, write the result conforming to `validation/schema/runtime.schema.json`. The agent will read it at the next session start and reconcile it against its own memory.
+
+---
+
+## ✅ The Validation System
+
+TCode's memory system tells the agent what it *believes* to be true. The validation system tells it what is *actually* true in the running environment. At every session boundary, the agent compares the two.
+
+### Four layers per project
+
+| Layer | File | Written by | Contains |
+|---|---|---|---|
+| **Regime** | `runtime/regime.md` | Developer | What gates apply — commit / merge / deploy |
+| **State** | `runtime/latest.json` | CI / CD | Most recent build, test, and deploy state |
+| **Events** | `runtime/events/YYYY-MM-DD.jsonl` | CI / CD | Per-run event log |
+| **Decisions** | `runtime/decisions.md` | Agent + Developer | Changes to the validation regime |
+
+This mirrors the memory taxonomy exactly — same structure, different author.
+
+### The reconciliation ritual
+
+Enforced by all agent adapters at the session boundary:
+
+- **Session start:** read `runtime/regime.md` + `runtime/latest.json` after reading memory. Surface any contradiction between memory claims and runtime state before starting work.
+- **Session end:** compare memory claims against `runtime/latest.json`. Record discrepancies under `## Validation Reconciliation` in the session log. If the same failure recurs across 2+ sessions, append to `runtime/decisions.md`.
+
+### What the framework provides vs what projects provide
+
+The framework provides **schema + taxonomy + reconciliation ritual** only. It does not prescribe test runners, CI platforms, or deployment tools — those are project concerns. The three framework-level conventions make runtime signals from any tool readable by any agent, in any project.
+
+Full spec: [`validation/VALIDATION.md`](validation/VALIDATION.md)
 
 ---
 
@@ -131,6 +184,8 @@ Paste the generated prompt into your coding agent. It will read `FRAMEWORK.md`, 
 | ![Cursor](https://img.shields.io/badge/Cursor-black?logo=cursor&logoColor=white) | `.cursorrules` | `templates/adapters/cursor_adapter.md` |
 | ![Copilot](https://img.shields.io/badge/GitHub_Copilot-black?logo=github&logoColor=white) | `.github/copilot-instructions.md` | `templates/adapters/copilot_adapter.md` |
 | ![Codex](https://img.shields.io/badge/OpenAI_Codex-black?logo=openai&logoColor=white) | `AGENTS.md` | `templates/adapters/codex_adapter.md` |
+
+All adapter templates include validation hooks — session bootstrap reads `runtime/` and session end reconciles memory against it.
 
 ---
 
@@ -144,7 +199,8 @@ These apply regardless of agent or project. The agent inherits and enforces them
 - 🎯 No gold-plating — build only what is in scope for the current phase
 - ✅ Tests must pass before pushing
 - 📋 Every architectural decision goes into `memory/decisions.md`
-- 🗒️ Every session ends with updated memory files and a session log
+- 🗒️ Every session ends with updated memory files, a session log, and a push to all remotes
+- 🔍 A phase is not complete unless `runtime/latest.json` confirms it
 
 ---
 
@@ -183,7 +239,8 @@ Conventional Commits + `Coding-Agent:` / `Model:` trailers — proper AI attribu
 
 | File | What it covers |
 |---|---|
-| [`FRAMEWORK.md`](FRAMEWORK.md) | Full SDLC spec — memory system, session protocol, quality gates, commit format |
+| [`FRAMEWORK.md`](FRAMEWORK.md) | Full SDLC spec — memory system, validation system, session protocol, quality gates |
+| [`validation/VALIDATION.md`](validation/VALIDATION.md) | Validation system deep dive — schema, taxonomy, reconciliation ritual |
 | [`HOW_TO_USE.md`](HOW_TO_USE.md) | Step-by-step setup and project creation walkthrough |
 | [`AGENTS.md`](AGENTS.md) | Quick-start reference for AGENTS.md-compatible coding agents |
 | [`devops/DEVOPS.md`](devops/DEVOPS.md) | Full DevOps system documentation |
