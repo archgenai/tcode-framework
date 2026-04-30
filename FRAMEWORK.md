@@ -44,7 +44,13 @@ TCode/                        ← Level 1: Workspace
 │   └── sessions/             ← Per-session logs: YYYY-MM-DD.md
 ├── templates/                ← Reusable scaffolding templates
 │   ├── adapters/             ← Agent-specific adapter templates
+│   ├── PROMPT_ZERO.md        ← Master Prompt Zero template
 │   └── ...
+├── promptZero/               ← Pre-kickoff structured planning prompts
+│   └── <app-slug>/           ← One folder per project idea
+│       └── promptZero.md     ← Filled template → paste into coding agent
+├── tools/                    ← Workspace tooling
+│   └── prompt-zero/          ← Web UI: generate Prompt Zero documents
 └── projects/
     └── <app-name>/           ← Level 2: Individual project
         ├── <agent-adapter>   ← Project-level adapter (inherits workspace rules)
@@ -170,11 +176,73 @@ tests/
 
 ## Project Lifecycle
 
+0. **Ideate (Prompt Zero)** — Before creating any project folder, generate a Prompt Zero
+   document using `tools/prompt-zero/` (web UI) or by filling `templates/PROMPT_ZERO.md`
+   by hand. Save the result to `promptZero/<app-slug>/promptZero.md` and paste its contents
+   into your coding agent. The agent will classify the project against the current TCode
+   Framework and produce a full implementation plan before any code is written.
+   See **§ Prompt Zero** below for the full protocol.
 1. **Specify** — Fill in `APP_SPEC.md` from the template. Define features, constraints, out-of-scope.
 2. **Scaffold** — Run `python new_project.py` or follow the manual path in `HOW_TO_USE.md`.
 3. **Bootstrap** — Ask your coding agent to generate `REQUIREMENTS.md` and the project adapter from `APP_SPEC.md`.
 4. **Build** — Work phase by phase. Never implement beyond the current phase.
 5. **Iterate** — After each phase: update `STACK.md`, commit, update memory.
+
+---
+
+## Prompt Zero
+
+Prompt Zero is Step 0 of every new project. It converts a product idea into a structured
+document that instructs a coding agent to plan and classify the project against the
+current TCode Framework — before any application code is written.
+
+### What the agent does with a Prompt Zero document
+
+1. Reads the TCode Framework files before writing any code
+2. Classifies the project as one of:
+   - `TCODE_READY` — framework is sufficient as-is
+   - `TCODE_READY_WITH_MINOR_ADDITIONS` — small project-local additions needed
+   - `TCODE_FRAMEWORK_EXTENSION_REQUIRED` — missing framework capabilities must be added first
+3. Evaluates the framework against five areas: memory, approvals, telemetry, deploy
+   workflows, and coding-agent governance
+4. Produces a full implementation plan, the minimum TCode file set, and a first-phase
+   task list
+5. Returns the exact next prompt the developer should send to begin implementation
+
+### How to generate a Prompt Zero document
+
+**Option A — Web UI (recommended):**
+1. Start the web app: `cd tools/prompt-zero && pip install -r requirements.txt && uvicorn main:app --reload --port 7999`
+2. Open `http://localhost:7999`
+3. Fill in the product idea fields (name, users, problem, MVP, stack, cloud target, safety)
+4. Click Generate — the tool fills the template and saves to `promptZero/<app-slug>/promptZero.md`
+5. Copy the output and paste it into your coding agent
+
+**Option B — Manual:**
+1. Copy `templates/PROMPT_ZERO.md` to `promptZero/<app-slug>/promptZero.md`
+2. Fill in all `[INSERT ...]` placeholders
+3. Paste into your coding agent
+
+### Storage convention
+
+```
+promptZero/
+└── <app-slug>/
+    └── promptZero.md     ← commit this — it is the planning record for the project
+```
+
+One folder per idea. The slug is the lowercased, hyphenated project name.
+Commit these files alongside other workspace docs — they are the historical record of how
+each project was planned and what TCode classification was assigned.
+
+### Rules
+
+- Do not ask the coding agent to write application code during Prompt Zero — it is a
+  planning step only.
+- Do not modify `templates/PROMPT_ZERO.md` for a specific project — fill the copy in
+  `promptZero/<app-slug>/`.
+- If the agent classifies as `TCODE_FRAMEWORK_EXTENSION_REQUIRED`, resolve the framework
+  gap before starting implementation — do not hack around it inside the project.
 
 ---
 

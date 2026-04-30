@@ -58,7 +58,13 @@ TCode/
 ├── memory/             ← Workspace-level persistent context
 ├── templates/
 │   ├── adapters/       ← Adapter templates for Claude, Cursor, Copilot
+│   ├── PROMPT_ZERO.md  ← Master Prompt Zero template
 │   └── ...
+├── promptZero/         ← Pre-kickoff structured planning prompts
+│   └── <app-slug>/
+│       └── promptZero.md
+├── tools/
+│   └── prompt-zero/    ← Web UI: generate Prompt Zero documents
 └── projects/
     └── <app-name>/
         ├── <adapter>   ← Project-level agent adapter
