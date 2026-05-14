@@ -104,6 +104,163 @@ instructions (e.g. Claude reads CLAUDE.md; Cursor reads .cursorrules).
 
 ---
 
+## Multi-Agent Protocol
+
+When a session operates as an **orchestrator** that spawns sub-agents (via the `Agent`
+tool or equivalent), the session bootstrap and session-end protocols split into two
+distinct roles. Without this split, concurrent writes corrupt shared memory and
+sub-agents start with blank context.
+
+### Roles
+
+| Role | Description |
+|---|---|
+| **Orchestrator** | The main session. Owns all workspace-level memory writes. Spawns and directs sub-agents. Reconciles sub-agent results and performs the session-end commit. |
+| **Sub-agent** | A spawned instance scoped to one project or task. Reads workspace memory at start. Writes only to its assigned project-level memory. Reports results to the orchestrator via its return message — never writes to workspace-level files. |
+
+### Sub-agent bootstrap block
+
+Every prompt sent to a sub-agent must begin with the following block.
+The orchestrator is responsible for including it — sub-agents do not self-bootstrap.
+
+```
+## TCode Bootstrap (read before doing anything)
+1. Read FRAMEWORK.md — §Session Bootstrap, §Multi-Agent Protocol, §Memory System
+2. Read memory/MEMORY.md — stable workspace facts (read-only)
+3. Read memory/task_plan.md — cross-project goals (read-only)
+4. Read projects/<name>/memory/MEMORY.md and task_plan.md
+5. If the project has runtime/regime.md and runtime/latest.json, read them and
+   surface any contradiction with memory claims before starting work
+
+## TCode Session End (before returning your result)
+1. Append a summary to projects/<name>/memory/sessions/YYYY-MM-DD.md
+2. Update projects/<name>/memory/task_plan.md — mark completed items, add blockers
+3. Update projects/<name>/memory/MEMORY.md if new stable facts were established
+4. Do NOT write to workspace-level memory/ — include what you did in your return message
+5. Do NOT commit or push — the orchestrator handles version control
+```
+
+### Orchestrator responsibilities
+
+After all sub-agents complete:
+1. Collect each sub-agent's return summary
+2. Reconcile into workspace `memory/task_plan.md` and `memory/sessions/YYYY-MM-DD.md`
+3. Update workspace `memory/MEMORY.md` if any cross-project stable facts changed
+4. Perform the session-end commit and push (see §Session Bootstrap Protocol above)
+
+### Write-scope rules
+
+These rules exist to prevent concurrent write conflicts on shared files.
+
+| Memory file | Written by | Never written by |
+|---|---|---|
+| Workspace `memory/MEMORY.md` | Orchestrator | Sub-agents |
+| Workspace `memory/task_plan.md` | Orchestrator | Sub-agents |
+| Workspace `memory/sessions/` | Orchestrator | Sub-agents |
+| Workspace `memory/decisions.md` | Orchestrator | Sub-agents |
+| Project `memory/*` | Sub-agent (its project only) | Other sub-agents |
+| Git commits and pushes | Orchestrator | Sub-agents |
+
+**Why:** Two agents writing to the same file concurrently produce corrupt or inconsistent
+state. Centralising workspace writes in the orchestrator eliminates this class of failure
+without requiring file locks or coordination protocols. This is recorded as ADR-W009.
+
+### Passing context to sub-agents
+
+The orchestrator must include in every sub-agent prompt:
+- Which project the sub-agent is working on (`projects/<name>/`)
+- The goal for this session (phase, task, constraints)
+- Any live context the sub-agent cannot derive from files alone (e.g. outcome of a
+  prior sub-agent's work in the same orchestrator session)
+
+The sub-agent bootstraps facts from files; the orchestrator provides goal and live context.
+
+---
+
+## Execution Layer
+
+TCode defines three layers at each level of the hierarchy:
+
+| Layer | File(s) | Nature | Audience |
+|---|---|---|---|
+| **Spec** | `FRAMEWORK.md` | Agent-agnostic canonical rules | Every agent |
+| **Declarative** | `CLAUDE.md`, `.cursorrules`, etc. | Agent-specific context and instructions | The targeted agent |
+| **Execution** | `.claude/` | Agent-specific hooks, commands, MCP config | The agent harness |
+
+The spec and declarative layers have always existed in TCode. The execution layer is explicitly
+**not** agent-agnostic — it is the agent harness running code on your behalf, not the agent
+reading instructions.
+
+**The distinction that matters:**
+
+> Rules govern what is correct. Execution automates what is repetitive.
+
+Rules alone are sufficient when the agent reads them at the right moment. They are insufficient
+for workflows that must trigger automatically — regardless of agent state, context length, or
+session continuity. The execution layer closes that gap.
+
+### Claude Code — the reference implementation
+
+Claude Code is the first and currently the only complete TCode execution rail. Its execution
+layer uses four components:
+
+| Component | Location | Purpose |
+|---|---|---|
+| **Hooks** | `.claude/settings.json` (`hooks:`) | Run shell commands on harness events — `Stop`, `PreToolUse`, `PostToolUse` |
+| **Commands** | `.claude/commands/*.md` | Slash commands — reusable, invocable workflows (the TCode plugin system) |
+| **Permissions** | `.claude/settings.json` (`permissions:`) | Pre-approved tool allowlists — no prompt for routine operations |
+| **MCP config** | `.claude/settings.json` (`mcpServers:`) | Additional tool providers wired into the session |
+
+When another agent gains a comparable harness (hooks + command files), it becomes the next
+TCode execution rail. The spec and declarative layers require no changes to support it.
+
+### The plugin system — `.claude/commands/`
+
+Each `.md` file in `.claude/commands/` defines one slash command. TCode treats this directory
+as the workspace plugin system: a set of reusable, composable workflows any session can invoke.
+
+**Standard workspace commands (every TCode Claude Code project):**
+
+| Command | File | What it does |
+|---|---|---|
+| `/review` | `commands/review.md` | Automated code + framework compliance review |
+| `/session-end` | `commands/session-end.md` | Runs the TCode session-end protocol (memory, task plan, commit) |
+| `/prompt-zero` | `commands/prompt-zero.md` | Launches the Prompt Zero planning workflow for a new project |
+
+Project-specific commands live in `projects/<name>/.claude/commands/`.
+
+Command templates: `templates/commands/command_template.md`.
+
+### Hook conventions
+
+Workspace-level hooks in `.claude/settings.json` apply to every session in this workspace.
+
+| Hook event | Trigger | TCode standard use |
+|---|---|---|
+| `Stop` | Agent finishes a turn | Run tests if `tests/` exists |
+| `PostToolUse:Bash` | After any Bash tool call | Log tool activity to session log |
+| `PreToolUse:Bash` | Before any Bash tool call | Gate or warn on destructive commands |
+
+Project-level hooks in `projects/<name>/.claude/settings.json` extend or override workspace
+hooks for that project only.
+
+### Placement rule — which layer owns what
+
+| Concern | Layer | File |
+|---|---|---|
+| SDLC standards (quality, testing, security) | Spec | `FRAMEWORK.md` |
+| Session bootstrap + memory protocol | Spec + Declarative | `FRAMEWORK.md`, `CLAUDE.md` |
+| Agent-specific syntax and tech choices | Declarative | `CLAUDE.md` |
+| Automatic test gate after every agent turn | Execution | `.claude/settings.json` hooks |
+| Reusable review workflow | Execution | `.claude/commands/review.md` |
+| Tool allowlist | Execution | `.claude/settings.json` permissions |
+
+If a concern can be addressed by the agent reading instructions and complying, it belongs
+in the spec or declarative layer. If it must trigger automatically without the agent choosing
+to act, it belongs in the execution layer.
+
+---
+
 ## SDLC Quality Standards
 
 These apply to every project in this workspace. Project-level adapters may tighten

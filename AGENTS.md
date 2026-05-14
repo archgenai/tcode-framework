@@ -51,13 +51,17 @@ These apply regardless of agent or project. Full rationale is in `FRAMEWORK.md`.
 ```
 TCode/
 ├── FRAMEWORK.md        ← Canonical SDLC spec (read this)
-├── CLAUDE.md           ← Claude Code adapter
+├── CLAUDE.md           ← Claude Code declarative adapter
 ├── AGENTS.md           ← This file
+├── .claude/            ← Claude Code execution layer (hooks, commands, permissions)
+│   ├── settings.json   ← Hooks + permissions + MCP config
+│   └── commands/       ← Slash command plugin system (one .md per command)
 ├── devops/             ← Provider-agnostic VCS / CI tooling
 ├── prompts/            ← Shared LLM prompt fragments
 ├── memory/             ← Workspace-level persistent context
 ├── templates/
 │   ├── adapters/       ← Adapter templates for Claude, Cursor, Copilot
+│   ├── commands/       ← Command/plugin templates
 │   ├── PROMPT_ZERO.md  ← Master Prompt Zero template
 │   └── ...
 ├── promptZero/         ← Pre-kickoff structured planning prompts
@@ -67,7 +71,8 @@ TCode/
 │   └── prompt-zero/    ← Web UI: generate Prompt Zero documents
 └── projects/
     └── <app-name>/
-        ├── <adapter>   ← Project-level agent adapter
+        ├── <adapter>   ← Project-level declarative adapter
+        ├── .claude/    ← Project-level execution layer (overrides workspace)
         ├── REQUIREMENTS.md
         ├── STACK.md
         ├── prompts/

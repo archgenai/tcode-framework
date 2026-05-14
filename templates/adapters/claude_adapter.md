@@ -56,6 +56,15 @@ Commit format: Conventional Commits + `Coding-Agent:` / `Model:` trailers.
 
 ---
 
+## Prompt Zero
+
+Before creating any new project, generate a Prompt Zero document first.
+Use the web UI at `tools/prompt-zero/` or fill `templates/PROMPT_ZERO.md` by hand.
+Save the result to `promptZero/<app-slug>/promptZero.md` and paste it into the agent.
+Full protocol: `FRAMEWORK.md § Prompt Zero`.
+
+---
+
 ## Session Bootstrap Protocol (Claude Code)
 
 At **session start**, read:
@@ -79,3 +88,57 @@ At **session end**, write:
    - If same failure recurs 2+ sessions: append entry to `runtime/decisions.md`
 
 Full validation protocol: `validation/VALIDATION.md`.
+
+---
+
+## Multi-Agent Orchestrator Protocol (Claude Code)
+
+When this session acts as an **orchestrator** spawning sub-agents via the `Agent` tool,
+the following rules apply. Full spec: `FRAMEWORK.md §Multi-Agent Protocol`.
+
+**Before spawning any sub-agent**, include this block verbatim at the top of the agent prompt:
+
+```
+## TCode Bootstrap (read before doing anything)
+1. Read FRAMEWORK.md — §Session Bootstrap, §Multi-Agent Protocol, §Memory System
+2. Read memory/MEMORY.md — stable workspace facts (read-only)
+3. Read memory/task_plan.md — cross-project goals (read-only)
+4. Read projects/<name>/memory/MEMORY.md and task_plan.md
+5. If the project has runtime/regime.md and runtime/latest.json, read them and
+   surface any contradiction with memory claims before starting work
+
+## TCode Session End (before returning your result)
+1. Append a summary to projects/<name>/memory/sessions/YYYY-MM-DD.md
+2. Update projects/<name>/memory/task_plan.md — mark completed items, add blockers
+3. Update projects/<name>/memory/MEMORY.md if new stable facts were established
+4. Do NOT write to workspace-level memory/ — include what you did in your return message
+5. Do NOT commit or push — the orchestrator handles version control
+```
+
+**After all sub-agents return**, the orchestrator must:
+1. Reconcile their summaries into workspace `memory/task_plan.md` and `memory/sessions/YYYY-MM-DD.md`
+2. Update workspace `memory/MEMORY.md` if cross-project stable facts changed
+3. Perform the session-end commit and push
+
+---
+
+## Execution Layer (Claude Code)
+
+Claude Code is the reference implementation of TCode's execution layer. The execution
+layer sits in `.claude/` and automates what the declarative layer instructs.
+Full spec: `FRAMEWORK.md §Execution Layer`.
+
+**Standard workspace commands** (invoke as slash commands):
+
+| Command | File | Purpose |
+|---|---|---|
+| `/review` | `.claude/commands/review.md` | Framework compliance + linting + test suite report |
+| `/session-end` | `.claude/commands/session-end.md` | Full TCode session-end protocol |
+| `/prompt-zero` | `.claude/commands/prompt-zero.md` | Prompt Zero planning workflow for a new project |
+
+**Hooks** in `.claude/settings.json`:
+- `Stop` — runs the test suite if `tests/` exists
+- `PostToolUse:Bash` — logs tool activity to the session log
+
+Add project-specific commands to `projects/<name>/.claude/commands/`.
+Command template: `templates/commands/command_template.md`.
