@@ -46,8 +46,6 @@ Override these per project in its own CLAUDE.md if the project needs something d
 |---|---|---|
 | `projects/patient-health-analyzer` | POC | Reads patient reports from SQLite, calls Claude API, returns structured health summaries |
 | `projects/budget-tracker-poc` | POC | Ingests receipts via Telegram, Claude vision OCR, SQLite storage, Matplotlib dashboard |
-| `projects/tfs-main-site` | Brand site | TFS (The Final Spell) standalone cricket culture brand website — Next.js 14 + TypeScript + Tailwind, 5 pages, dark/light theme, Vercel-ready. Shopify linked as subdomain merch engine. |
-| `projects/tfs-sports-intelligence-engine` | Platform | Local-first cricket intelligence engine — Cricinfo ingest, 15-metric rules-based scoring, canonical JSON artifact, FastAPI, multi-sport plugin architecture. Sprint 1 complete. |
 | `projects/amd-rocm-pytorch-bridge` | Learning/Interview | PyTorch custom operator → C++ binding → HIP-style kernel + CPU fallback. Demonstrates framework/backend boundary, ROCm mental model, and compile-time feature gating. |
 | `projects/tfs-shrinks` | Digital Product | First member of the Digital Products portfolio. One-click social-media video packager — drop a video, pick platforms, get a zip with correctly-formatted outputs. Next.js + ffmpeg.wasm (web) + Tauri (desktop) + Capacitor (mobile). Lemon Squeezy for billing. Canonical spec: `Project_Kickoffs/Digital_Products/TFS_SHRINKS_v2_addendum.md`. |
 
