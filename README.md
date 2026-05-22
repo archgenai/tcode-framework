@@ -15,6 +15,7 @@
 
 ## 🧠 The Core Idea
 
+TCode is an agent-agnostic execution and governance layer for AI-assisted software development. The core idea is that coding agents like Claude Code, Codex, Cursor, or future agents should not own the SDLC workflow themselves. Instead, the workflow, constraints, observability, lifecycle rules, and execution rails should exist independently of the agent implementation.
 Most developers hand an AI agent a task and hope for the best. TCode flips this: the agent reads the framework, inherits your standards, and works within a defined structure — across every session, every project, every sprint.
 
 TCode defines **three layers** at every level of the workspace:
