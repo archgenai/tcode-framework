@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
 """
-TCode — New Project Wizard
+TCode — New Project Wizard  [LEGACY — terminal fallback only]
 
-Interactive entry point for scaffolding a new application in this workspace.
+DEPRECATED as the primary interface. Use the /new-project slash command in
+Claude Code instead — it runs the full Prompt Zero → approval gate → scaffold
+→ register flow in a single agent session.
+
+This script is kept as a terminal-only fallback for environments without a
+Claude Code session (e.g. running in a plain terminal with no agent present).
+Do NOT invoke this script from within a Claude Code session or from the
+/new-project slash command.
+
+  Primary interface:  /new-project  (in Claude Code)
+  Terminal fallback:  python new_project.py
+
 Run from the TCode root:
 
     python new_project.py
